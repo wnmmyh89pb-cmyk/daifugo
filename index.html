@@ -519,6 +519,10 @@ document
 
         playCards(0, cards);
 
+        if (checkWinner())
+        return;
+
+
         message("8切り！");
 
         fieldCards = [];
