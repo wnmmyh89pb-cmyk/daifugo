@@ -514,25 +514,36 @@ document
 
     }
 
+// 8切り
+if (cards[0].value === 8) {
+
+    playCards(0, cards);
+
+    // 手札が0枚ならゲーム終了
+    if (players[0].hand.length === 0) {
+
+        gameOver = true;
+
+        document.getElementById("result")
+            .style.display = "block";
+
+        document.getElementById("result-title")
+            .textContent = "あなたの勝利！";
+
+        return;
+    }
+
     // 8切り
-    if (cards[0].value === 8) {
+    fieldCards = [];
+    consecutivePasses = 0;
+    selectedCards = [];
 
-        playCards(0, cards);
+    render();
 
-        if (checkWinner())
-        return;
+    message("8切り！場が流れました。あなたの番です。");
 
-        message("8切り！");
-
-        fieldCards = [];
-
-        consecutivePasses = 0;
-
-        render();
-
-        message("場が流れました。あなたの番です。");
-
-        return;
+    return;
+}
     }
 
     playCards(0, cards);
