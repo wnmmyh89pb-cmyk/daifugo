@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大富豪</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    background: #176b3a;
+    color: white;
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+    user-select: none;
+}
+
+header {
+    text-align: center;
+    padding: 15px;
+    background: rgba(0,0,0,0.2);
+}
+
+h1 {
+    margin: 0;
+    font-size: 24px;
+}
+
+#game {
+    max-width: 900px;
+    margin: auto;
+    padding: 12px;
+}
+
+/* CPU */
+
+.players {
+    display: flex;
+    justify-content: space-around;
+    margin-bottom: 12px;
+}
+
+.player {
+    text-align: center;
+    padding: 8px 12px;
+    border-radius: 10px;
+}
+
+.player.active {
+    background: rgba(255,255,255,0.18);
+}
+
+.hand-count {
+    font-size: 13px;
+    opacity: 0.8;
+}
+
+/* 場 */
+
+#table {
+    min-height: 180px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
+#field {
+    min-height: 100px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 5px;
+}
+
+#message {
+    margin-top: 10px;
+    min-height: 24px;
+    text-align: center;
+}
+
+/* カード */
+
+.card {
+    width: 58px;
+    height: 82px;
+    background: white;
+    color: black;
+    border-radius: 7px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 25px;
+    font-weight: bold;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+    cursor: pointer;
+    transition: transform 0.15s;
+}
+
+.card.red {
+    color: #d22;
+}
+
+.card.selected {
+    transform: translateY(-15px);
+    box-shadow: 0 7px 10px rgba(0,0,0,0.35);
+}
+
+#my-hand {
+    min-height: 110px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    gap: 5px;
+    padding: 10px 0;
+}
+
+/* ボタン */
+
+.controls {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+button {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+#play-button {
+    background: #ffd54f;
+}
+
+#pass-button {
+    background: #eee;
+}
+
+button:disabled {
+    opacity: 0.4;
+}
+
+/* ゲーム終了 */
+
+#result {
+    display: none;
+    text-align: center;
+    padding: 25px;
+    background: rgba(0,0,0,0.3);
+    border-radius: 15px;
+    margin-top: 20px;
+}
+
+#result h2 {
+    margin-top: 0;
+}
+
+@media (max-width: 600px) {
+    .card {
+        width: 45px;
+        height: 65px;
+        font-size: 19px;
+    }
+
+    .players {
+        font-size: 14px;
+    }
+
+    #table {
+        min-height: 150px;
+    }
+}
+</style>
+</head>
+
+<body>
+
+<header>
+    <h1>大富豪</h1>
+</header>
+
+<div id="game">
+
+    <div class="players">
+        <div class="player" id="cpu1">
+            CPU 1<br>
+            <span class="hand-count">0枚</span>
+        </div>
+
+        <div class="player" id="cpu2">
+            CPU 2<br>
+            <span class="hand-count">0枚</span>
+        </div>
+
+        <div class="player" id="cpu3">
+            CPU 3<br>
+            <span class="hand-count">0枚</span>
+        </div>
+    </div>
+
+    <div id="table">
+        <div>場</div>
+        <div id="field"></div>
+        <div id="message"></div>
+    </div>
+
+    <div id="my-hand"></div>
+
+    <div class="controls">
+        <button id="play-button">出す</button>
+        <button id="pass-button">パス</button>
+    </div>
+
+    <div id="result">
+        <h2 id="result-title"></h2>
+        <button onclick="location.reload()">もう一度遊ぶ</button>
+    </div>
+
+</div>
+
+<script>
+
+/* =========================
+   カード
+========================= */
+
+const suits = ["♠", "♥", "♦", "♣"];
+
+// 3 → 4 → ... → A → 2
+const ranks = [
+    { name: "3", value: 3 },
+    { name: "4", value: 4 },
+    { name: "5", value: 5 },
+    { name: "6", value: 6 },
+    { name: "7", value: 7 },
+    { name: "8", value: 8 },
+    { name: "9", value: 9 },
+    { name: "10", value: 10 },
+    { name: "J", value: 11 },
+    { name: "Q", value: 12 },
+    { name: "K", value: 13 },
+    { name: "A", value: 14 },
+    { name: "2", value: 15 }
+];
+
+let deck = [];
+let players = [];
+let currentPlayer = 0;
+
+let fieldCards = [];
+let selectedCards = [];
+
+let consecutivePasses = 0;
+let gameOver = false;
+
+
+/* =========================
+   初期化
+========================= */
+
+function createDeck() {
+
+    deck = [];
+
+    for (const suit of suits) {
+        for (const rank of ranks) {
+
+            deck.push({
+                suit: suit,
+                name: rank.name,
+                value: rank.value
+            });
+
+        }
+    }
+}
+
+function shuffle(array) {
+
+    for (let i = array.length - 1; i > 0; i--) {
+
+        const j = Math.floor(Math.random() * (i + 1));
+
+        [array[i], array[j]] =
+        [array[j], array[i]];
+    }
+}
+
+function startGame() {
+
+    createDeck();
+    shuffle(deck);
+
+    players = [
+        { name: "あなた", hand: [] },
+        { name: "CPU 1", hand: [] },
+        { name: "CPU 2", hand: [] },
+        { name: "CPU 3", hand: [] }
+    ];
+
+    // 13枚ずつ配る
+    for (let i = 0; i < deck.length; i++) {
+
+        players[i % 4].hand.push(deck[i]);
+
+    }
+
+    // 手札を数字順に並べる
+    for (const player of players) {
+
+        player.hand.sort((a, b) =>
+            a.value - b.value
+        );
+
+    }
+
+    // まずは必ずあなたから
+    currentPlayer = 0;
+
+    render();
+
+    message("あなたの番です。");
+
+}
+
+
+/* =========================
+   表示
+========================= */
+
+function render() {
+
+    renderPlayers();
+    renderField();
+    renderMyHand();
+
+}
+
+function renderPlayers() {
+
+    for (let i = 1; i <= 3; i++) {
+
+        const element =
+            document.querySelector(`#cpu${i}`);
+
+        element.classList.toggle(
+            "active",
+            currentPlayer === i
+        );
+
+        element.querySelector(".hand-count")
+            .textContent =
+            `${players[i].hand.length}枚`;
+    }
+
+}
+
+function renderField() {
+
+    const field =
+        document.getElementById("field");
+
+    field.innerHTML = "";
+
+    for (const card of fieldCards) {
+
+        field.appendChild(
+            createCardElement(card, false)
+        );
+
+    }
+
+}
+
+function renderMyHand() {
+
+    const hand =
+        document.getElementById("my-hand");
+
+    hand.innerHTML = "";
+
+    players[0].hand.forEach((card, index) => {
+
+        const element =
+            createCardElement(card, true);
+
+        if (selectedCards.includes(index)) {
+            element.classList.add("selected");
+        }
+
+        element.onclick = () => {
+
+            if (currentPlayer !== 0) return;
+
+            if (selectedCards.includes(index)) {
+
+                selectedCards =
+                    selectedCards.filter(
+                        i => i !== index
+                    );
+
+            } else {
+
+                selectedCards.push(index);
+
+            }
+
+            renderMyHand();
+
+        };
+
+        hand.appendChild(element);
+
+    });
+
+}
+
+function createCardElement(card, clickable) {
+
+    const element =
+        document.createElement("div");
+
+    element.className = "card";
+
+    if (card.suit === "♥" ||
+        card.suit === "♦") {
+
+        element.classList.add("red");
+
+    }
+
+    element.textContent =
+        card.suit + card.name;
+
+    if (!clickable) {
+        element.style.cursor = "default";
+    }
+
+    return element;
+
+}
+
+function message(text) {
+
+    document.getElementById("message")
+        .textContent = text;
+
+}
+
+
+/* =========================
+   カードを出せるか
+========================= */
+
+function canPlay(cards) {
+
+    if (cards.length === 0)
+        return false;
+
+    // 同じ数字でなければ出せない
+    const sameRank =
+        cards.every(
+            card => card.value === cards[0].value
+        );
+
+    if (!sameRank)
+        return false;
+
+    // 場が空なら出せる
+    if (fieldCards.length === 0)
+        return true;
+
+    // 枚数が違えば出せない
+    if (cards.length !== fieldCards.length)
+        return false;
+
+    // 場より強い必要がある
+    return cards[0].value >
+           fieldCards[0].value;
+}
+
+
+/* =========================
+   プレイヤーが出す
+========================= */
+
+document
+.getElementById("play-button")
+.onclick = function() {
+
+    if (currentPlayer !== 0)
+        return;
+
+    const hand = players[0].hand;
+
+    const cards =
+        selectedCards.map(
+            index => hand[index]
+        );
+
+    if (!canPlay(cards)) {
+
+        message("そのカードは出せません。");
+        return;
+
+    }
+
+    // 8切り
+    if (cards[0].value === 8) {
+
+        playCards(0, cards);
+
+        message("8切り！");
+
+        fieldCards = [];
+
+        consecutivePasses = 0;
+
+        render();
+
+        message("場が流れました。あなたの番です。");
+
+        return;
+    }
+
+    playCards(0, cards);
+
+    selectedCards = [];
+
+    if (checkWinner())
+        return;
+
+    nextTurn();
+
+};
+
+
+/* =========================
+   パス
+========================= */
+
+document
+.getElementById("pass-button")
+.onclick = function() {
+
+    if (currentPlayer !== 0)
+        return;
+
+    if (fieldCards.length === 0) {
+
+        message("最初の場ではパスできません。");
+        return;
+
+    }
+
+    consecutivePasses++;
+
+    message("パスしました。");
+
+    nextTurn();
+
+};
+
+
+/* =========================
+   カードを出す
+========================= */
+
+function playCards(playerIndex, cards) {
+
+    const hand =
+        players[playerIndex].hand;
+
+    for (const card of cards) {
+
+        const index =
+            hand.indexOf(card);
+
+        if (index !== -1) {
+            hand.splice(index, 1);
+        }
+
+    }
+
+    fieldCards = [...cards];
+
+    consecutivePasses = 0;
+
+    render();
+
+}
+
+
+/* =========================
+   ターン
+========================= */
+
+function nextTurn() {
+
+    // 3人連続パス
+    if (consecutivePasses >= 3) {
+
+        fieldCards = [];
+        consecutivePasses = 0;
+
+        currentPlayer = 0;
+
+        render();
+
+        message("場が流れました。あなたの番です。");
+
+        return;
+    }
+
+    currentPlayer =
+        (currentPlayer + 1) % 4;
+
+    render();
+
+    if (currentPlayer === 0) {
+
+        message("あなたの番です。");
+
+    } else {
+
+        setTimeout(cpuTurn, 800);
+
+    }
+
+}
+
+
+/* =========================
+   CPU
+========================= */
+
+function cpuTurn() {
+
+    if (gameOver)
+        return;
+
+    const player =
+        players[currentPlayer];
+
+    // 出せるカードを探す
+    let playable = [];
+
+    for (const card of player.hand) {
+
+        if (canPlay([card])) {
+
+            playable.push(card);
+
+        }
+
+    }
+
+    // 出せるカードがなければパス
+    if (playable.length === 0) {
+
+        consecutivePasses++;
+
+        message(`${player.name} はパス`);
+
+        nextTurn();
+
+        return;
+    }
+
+    // 一番弱いカードを出す
+    const card = playable[0];
+
+    playCards(currentPlayer, [card]);
+
+    message(
+        `${player.name} が ${card.suit}${card.name} を出しました`
+    );
+
+    // 8切り
+    if (card.value === 8) {
+
+        fieldCards = [];
+
+        consecutivePasses = 0;
+
+        message(
+            `${player.name} の8切り！`
+        );
+
+    }
+
+    if (checkWinner())
+        return;
+
+    nextTurn();
+
+}
+
+
+/* =========================
+   勝敗
+========================= */
+
+function checkWinner() {
+
+    for (const player of players) {
+
+        if (player.hand.length === 0) {
+
+            gameOver = true;
+
+            document.getElementById("result")
+                .style.display = "block";
+
+            document.getElementById("result-title")
+                .textContent =
+                `${player.name} の勝利！`;
+
+            return true;
+        }
+
+    }
+
+    return false;
+
+}
+
+
+/* =========================
+   ゲーム開始
+========================= */
+
+startGame();
+
+</script>
+
+</body>
+</html>
